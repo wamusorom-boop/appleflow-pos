@@ -1,0 +1,31 @@
+# AppleFlow POS - Docker Compose for Development
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: appleflow-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: appleflow
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: appleflow_dev
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U appleflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: appleflow-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_dev_data:
