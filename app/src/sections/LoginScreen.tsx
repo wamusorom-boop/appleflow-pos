@@ -1,10 +1,18 @@
 /**
  * AppleFlow POS - Login Screen
- * Beautiful authentication interface with multi-color themes
+ * Fixed: Proper error handling, loading states, logo integration, form validation
  */
 
-import { useState, useEffect } from 'react';
-import { Store, Lock, Eye, EyeOff, User, AlertCircle, Sparkles, Settings } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { 
+  Lock, 
+  Eye, 
+  EyeOff, 
+  AlertCircle, 
+  Sparkles, 
+  Loader2,
+  Mail,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,155 +21,103 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/context/AuthContext';
-import { useTheme } from '@/context/ThemeContext';
-import { ThemeSelector } from '@/components/ThemeSelector';
-import { api } from '@/lib/api';
 
-// AppleFlow Logo Component
-function AppleFlowLogo({ size = 'large' }: { size?: 'small' | 'large' }) {
-  const { currentTheme } = useTheme();
-  const isLarge = size === 'large';
-  
-  return (
-    <div className={`relative ${isLarge ? 'w-24 h-24' : 'w-12 h-12'}`}>
-      {/* Outer spinning ring */}
-      <div className="absolute inset-0 animate-spin" style={{ animationDuration: '8s' }}>
-        <svg viewBox="0 0 100 100" className="w-full h-full">
-          <circle
-            cx="50"
-            cy="50"
-            r="45"
-            fill="none"
-            stroke={currentTheme.primary}
-            strokeWidth="2"
-            strokeDasharray="15 10"
-            opacity="0.5"
-          />
-        </svg>
-      </div>
-      
-      {/* Inner ring */}
-      <div className="absolute inset-2 animate-spin" style={{ animationDuration: '6s', animationDirection: 'reverse' }}>
-        <svg viewBox="0 0 100 100" className="w-full h-full">
-          <circle
-            cx="50"
-            cy="50"
-            r="40"
-            fill="none"
-            stroke={currentTheme.secondary}
-            strokeWidth="2"
-            strokeDasharray="10 15"
-            opacity="0.7"
-          />
-        </svg>
-      </div>
-      
-      {/* Center logo */}
-      <div 
-        className={`absolute inset-4 rounded-full flex items-center justify-center shadow-lg ${isLarge ? 'text-4xl' : 'text-xl'}`}
-        style={{ 
-          background: `linear-gradient(135deg, ${currentTheme.primary}, ${currentTheme.secondary})`,
-        }}
-      >
-        <span>🍎</span>
-      </div>
-    </div>
-  );
-}
+// Demo users for quick login
+const DEMO_USERS = [
+  { id: '1', name: 'Admin User', email: 'admin@appleflow.pos', role: 'ADMIN' },
+  { id: '2', name: 'Manager', email: 'manager@appleflow.pos', role: 'MANAGER' },
+  { id: '3', name: 'Cashier', email: 'cashier@appleflow.pos', role: 'CASHIER' },
+];
 
 export function LoginScreen() {
-  const { login } = useAuth();
-  const { currentTheme } = useTheme();
-  const [users, setUsers] = useState<any[]>([]);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const { login, isLoading, error, clearError } = useAuth();
+  
+  // Form state
   const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [licenseStatus, setLicenseStatus] = useState<any>(null);
-  const [showLicenseInput, setShowLicenseInput] = useState(false);
-  const [licenseKey, setLicenseKey] = useState('');
+  const [selectedUser, setSelectedUser] = useState<typeof DEMO_USERS[0] | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('quick');
 
+  // Clear errors when inputs change
   useEffect(() => {
-    loadUsers();
-    checkLicense();
+    if (error) clearError();
+    if (localError) setLocalError(null);
+  }, [email, pin, error, clearError]);
+
+  // Handle user selection for quick login
+  const handleSelectUser = useCallback((user: typeof DEMO_USERS[0]) => {
+    setSelectedUser(user);
+    setEmail(user.email);
+    setPin('');
+    setLocalError(null);
   }, []);
 
-  const loadUsers = async () => {
-    try {
-      const response = await api.auth.getUsers?.() || { data: [] };
-      setUsers(response.data || []);
-    } catch (err) {
-      // Fallback to demo users if API fails
-      setUsers([
-        { id: '1', name: 'Admin User', email: 'admin@appleflow.pos', role: 'ADMIN' },
-        { id: '2', name: 'Manager', email: 'manager@appleflow.pos', role: 'MANAGER' },
-        { id: '3', name: 'Cashier', email: 'cashier@appleflow.pos', role: 'CASHIER' },
-      ]);
-    }
-  };
+  // Handle back button
+  const handleBack = useCallback(() => {
+    setSelectedUser(null);
+    setEmail('');
+    setPin('');
+    setLocalError(null);
+  }, []);
 
-  const checkLicense = async () => {
-    try {
-      const response = await api.license?.verify();
-      setLicenseStatus(response?.data);
-    } catch (err) {
-      // License check failed, will show activation
+  // Validate form inputs
+  const validateInputs = useCallback((): string | null => {
+    const loginEmail = selectedUser ? selectedUser.email : email;
+    
+    if (!loginEmail?.trim()) {
+      return 'Please enter your email address';
     }
-  };
+    
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginEmail)) {
+      return 'Please enter a valid email address';
+    }
+    
+    if (!pin?.trim()) {
+      return 'Please enter your PIN';
+    }
+    
+    if (!/^\d{4,6}$/.test(pin)) {
+      return 'PIN must be 4-6 digits';
+    }
+    
+    return null;
+  }, [email, pin, selectedUser]);
 
-  const activateLicense = async (e: React.FormEvent) => {
+  // Handle login submission
+  const handleLogin = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    try {
-      await api.license?.activate(licenseKey, 'Demo User', 'demo@appleflow.pos');
-      setShowLicenseInput(false);
-      await checkLicense();
-    } catch (err: any) {
-      setError(err.message || 'Failed to activate license');
+    
+    // Clear previous errors
+    setLocalError(null);
+    if (error) clearError();
+    
+    // Validate inputs
+    const validationError = validateInputs();
+    if (validationError) {
+      setLocalError(validationError);
+      return;
     }
-    setIsLoading(false);
-  };
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setIsLoading(true);
-
+    
     const loginEmail = selectedUser ? selectedUser.email : email;
     
     try {
       await login(loginEmail, pin);
-    } catch (err) {
-      setError('Invalid PIN. Please try again.');
+      // Login successful - AuthContext will handle state update
+      // App.tsx will redirect based on isAuthenticated
+    } catch (err: any) {
+      // Error is already handled by AuthContext
+      // Just ensure local state reflects it
+      setLocalError(err.message || 'Login failed');
     }
+  }, [login, email, pin, selectedUser, validateInputs, error, clearError]);
 
-    setIsLoading(false);
-  };
-
-  const handleSelectUser = (user: any) => {
-    setSelectedUser(user);
-    setEmail(user.email);
-    setPin('');
-    setError(null);
-  };
-
-  const handleBack = () => {
-    setSelectedUser(null);
-    setEmail('');
-    setPin('');
-    setError(null);
-  };
-
-  // Check if license needs activation
-  const needsLicense = !licenseStatus?.valid && !showLicenseInput;
+  // Display error (priority: auth error > local error)
+  const displayError = error || localError;
 
   return (
-    <div 
-      className="min-h-screen flex items-center justify-center p-4 transition-colors duration-500"
-      style={{ background: currentTheme.gradient }}
-    >
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* Animated background particles */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {[...Array(15)].map((_, i) => (
@@ -171,7 +127,7 @@ export function LoginScreen() {
             style={{
               left: `${Math.random() * 100}%`,
               top: `${Math.random() * 100}%`,
-              background: 'rgba(255,255,255,0.15)',
+              background: 'rgba(16, 185, 129, 0.15)',
               animationDelay: `${Math.random() * 3}s`,
               animationDuration: `${3 + Math.random() * 2}s`,
             }}
@@ -179,202 +135,99 @@ export function LoginScreen() {
         ))}
       </div>
 
-      {/* Theme selector - top right */}
-      <div className="absolute top-4 right-4 z-20">
-        <ThemeSelector />
-      </div>
-
-      <Card 
-        className="w-full max-w-md relative z-10 shadow-2xl border-0"
-        style={{ 
-          background: 'rgba(255, 255, 255, 0.95)',
-          backdropFilter: 'blur(20px)',
-        }}
-      >
+      {/* Main Card */}
+      <Card className="w-full max-w-md relative z-10 shadow-2xl border-0 bg-white/95 backdrop-blur-xl">
         <CardHeader className="text-center pb-6">
           {/* Logo */}
           <div className="mx-auto mb-6">
-            <AppleFlowLogo size="large" />
+            <div className="w-28 h-28 relative">
+              <div className="absolute inset-0 animate-spin" style={{ animationDuration: '8s' }}>
+                <svg viewBox="0 0 100 100" className="w-full h-full">
+                  <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="2" 
+                    strokeDasharray="15 10" className="text-emerald-500/30" />
+                </svg>
+              </div>
+              <div className="absolute inset-2 animate-spin" style={{ animationDuration: '6s', animationDirection: 'reverse' }}>
+                <svg viewBox="0 0 100 100" className="w-full h-full">
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="2" 
+                    strokeDasharray="10 15" className="text-emerald-500/50" />
+                </svg>
+              </div>
+              <div className="absolute inset-4 rounded-full flex items-center justify-center shadow-lg overflow-hidden bg-white">
+                <img 
+                  src="/logo.png" 
+                  alt="AppleFlow POS" 
+                  className="w-16 h-16 object-contain"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const fallback = document.createElement('span');
+                    fallback.className = 'text-4xl';
+                    fallback.textContent = '🍎';
+                    target.parentElement?.appendChild(fallback);
+                  }}
+                />
+              </div>
+            </div>
           </div>
           
-          <CardTitle 
-            className="text-3xl font-bold"
-            style={{ color: currentTheme.textPrimary }}
-          >
+          <CardTitle className="text-3xl font-bold text-slate-900">
             AppleFlow POS
           </CardTitle>
-          <CardDescription style={{ color: currentTheme.textSecondary }}>
+          <CardDescription className="text-slate-500 mt-1">
             Professional Point of Sale System
           </CardDescription>
           
-          {/* Version badge */}
           <div className="flex justify-center mt-3">
-            <Badge 
-              variant="outline" 
-              className="text-xs"
-              style={{ borderColor: currentTheme.primary, color: currentTheme.primary }}
-            >
+            <Badge variant="outline" className="text-xs border-emerald-500 text-emerald-600">
               <Sparkles className="w-3 h-3 mr-1" />
-              v2.0 ULTIMATE
+              v2.0 ENTERPRISE
             </Badge>
           </div>
         </CardHeader>
 
         <CardContent>
-          {error && (
-            <Alert 
-              variant="destructive" 
-              className="mb-4"
-              style={{ background: `${currentTheme.error}15`, borderColor: `${currentTheme.error}40` }}
-            >
-              <AlertCircle className="h-4 w-4" style={{ color: currentTheme.error }} />
-              <AlertDescription style={{ color: currentTheme.error }}>{error}</AlertDescription>
+          {/* Error Display */}
+          {displayError && (
+            <Alert variant="destructive" className="mb-4 animate-fade-in">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{displayError}</AlertDescription>
             </Alert>
           )}
 
-          {/* License Activation */}
-          {showLicenseInput ? (
-            <form onSubmit={activateLicense} className="space-y-4">
-              <div className="text-center mb-4">
-                <Settings className="w-12 h-12 mx-auto mb-2" style={{ color: currentTheme.primary }} />
-                <p className="font-medium" style={{ color: currentTheme.textPrimary }}>
-                  Activate License
-                </p>
-                <p className="text-sm" style={{ color: currentTheme.textSecondary }}>
-                  Enter your license key to continue
-                </p>
-              </div>
-              
-              <div className="space-y-2">
-                <Label style={{ color: currentTheme.textPrimary }}>License Key</Label>
-                <Input
-                  value={licenseKey}
-                  onChange={(e) => setLicenseKey(e.target.value.toUpperCase())}
-                  placeholder="AFP-XXXXXXXX-XXXXXXXX-XXXX"
-                  className="text-center font-mono tracking-wider"
-                  style={{ 
-                    borderColor: currentTheme.border,
-                    color: currentTheme.textPrimary 
-                  }}
-                  required
-                />
-              </div>
-              
-              <Button 
-                type="submit" 
-                className="w-full"
-                disabled={isLoading}
-                style={{ 
-                  background: currentTheme.gradient,
-                  color: 'white' 
-                }}
-              >
-                {isLoading ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  'Activate'
-                )}
-              </Button>
-              
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full"
-                onClick={() => setShowLicenseInput(false)}
-              >
-                Cancel
-              </Button>
-            </form>
-          ) : needsLicense ? (
-            <div className="text-center space-y-4">
-              <div 
-                className="p-6 rounded-xl"
-                style={{ background: currentTheme.background }}
-              >
-                <Sparkles className="w-12 h-12 mx-auto mb-3" style={{ color: currentTheme.primary }} />
-                <p className="font-medium mb-2" style={{ color: currentTheme.textPrimary }}>
-                  Welcome to AppleFlow POS
-                </p>
-                <p className="text-sm mb-4" style={{ color: currentTheme.textSecondary }}>
-                  This software requires a valid license key. Please activate to continue.
-                </p>
-                <Button
-                  onClick={() => setShowLicenseInput(true)}
-                  style={{ 
-                    background: currentTheme.gradient,
-                    color: 'white' 
-                  }}
-                >
-                  <Lock className="w-4 h-4 mr-2" />
-                  Activate License
-                </Button>
-              </div>
-              
-              <p className="text-xs" style={{ color: currentTheme.textMuted }}>
-                Contact your administrator for a license key
-              </p>
-            </div>
-          ) : !selectedUser ? (
-            <Tabs defaultValue="quick" className="w-full">
-              <TabsList 
-                className="grid w-full grid-cols-2"
-                style={{ background: currentTheme.background }}
-              >
-                <TabsTrigger 
-                  value="quick" 
-                  className="data-[state=active]:text-white"
-                  style={{ 
-                    ['--tw-bg-opacity' as string]: '1',
-                  }}
-                >
+          {/* Login Tabs */}
+          {!selectedUser ? (
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 bg-slate-100">
+                <TabsTrigger value="quick" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
                   Quick Login
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="email"
-                  className="data-[state=active]:text-white"
-                >
+                <TabsTrigger value="email" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
                   Email Login
                 </TabsTrigger>
               </TabsList>
 
+              {/* Quick Login Tab */}
               <TabsContent value="quick" className="mt-4">
-                <p 
-                  className="text-sm text-center mb-4"
-                  style={{ color: currentTheme.textSecondary }}
-                >
+                <p className="text-sm text-slate-500 text-center mb-4">
                   Select your account to continue
                 </p>
-                <div className="grid grid-cols-1 gap-2">
-                  {users.map((user) => (
+                <div className="space-y-2">
+                  {DEMO_USERS.map((user) => (
                     <button
                       key={user.id}
                       onClick={() => handleSelectUser(user)}
-                      className="flex items-center gap-4 p-4 rounded-xl border-2 transition-all hover:scale-[1.02] group"
-                      style={{ 
-                        borderColor: currentTheme.border,
-                        background: currentTheme.background 
-                      }}
+                      disabled={isLoading}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200 transition-all hover:scale-[1.02] hover:border-emerald-500 hover:shadow-md bg-white disabled:opacity-50"
                     >
-                      <div 
-                        className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
-                        style={{ background: currentTheme.gradient }}
-                      >
-                        <User className="w-5 h-5 text-white" />
+                      <div className="w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br from-emerald-500 to-emerald-600 text-white font-medium">
+                        {user.name.charAt(0)}
                       </div>
                       <div className="flex-1 text-left">
-                        <p className="font-medium" style={{ color: currentTheme.textPrimary }}>
-                          {user.name}
-                        </p>
-                        <p className="text-sm" style={{ color: currentTheme.textSecondary }}>
-                          {user.email}
-                        </p>
+                        <p className="font-medium text-slate-900">{user.name}</p>
+                        <p className="text-sm text-slate-500">{user.email}</p>
                       </div>
-                      <Badge 
-                        style={{ 
-                          background: user.role === 'ADMIN' ? currentTheme.primary : currentTheme.secondary,
-                          color: 'white' 
-                        }}
-                      >
+                      <Badge className="bg-emerald-100 text-emerald-700">
                         {user.role}
                       </Badge>
                     </button>
@@ -382,48 +235,46 @@ export function LoginScreen() {
                 </div>
               </TabsContent>
 
+              {/* Email Login Tab */}
               <TabsContent value="email" className="mt-4">
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label style={{ color: currentTheme.textPrimary }}>Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="admin@appleflow.pos"
-                      style={{ 
-                        borderColor: currentTheme.border,
-                        color: currentTheme.textPrimary,
-                        background: currentTheme.background 
-                      }}
-                      required
-                    />
+                    <Label htmlFor="email" className="text-slate-700">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Input
+                        id="email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="admin@appleflow.pos"
+                        className="pl-10"
+                        disabled={isLoading}
+                        autoComplete="email"
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label style={{ color: currentTheme.textPrimary }}>PIN</Label>
+                    <Label htmlFor="pin" className="text-slate-700">PIN</Label>
                     <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <Input
                         id="pin"
                         type={showPin ? 'text' : 'password'}
                         value={pin}
-                        onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                        onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
                         placeholder="••••"
-                        maxLength={4}
-                        className="pr-10"
-                        style={{ 
-                          borderColor: currentTheme.border,
-                          color: currentTheme.textPrimary,
-                          background: currentTheme.background 
-                        }}
-                        required
+                        maxLength={6}
+                        className="pl-10 pr-10"
+                        disabled={isLoading}
+                        autoComplete="current-password"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPin(!showPin)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2"
-                        style={{ color: currentTheme.textMuted }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        tabIndex={-1}
                       >
                         {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -432,16 +283,18 @@ export function LoginScreen() {
 
                   <Button 
                     type="submit" 
-                    className="w-full text-white"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                     disabled={isLoading}
-                    style={{ background: currentTheme.gradient }}
                   >
                     {isLoading ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Signing in...
+                      </>
                     ) : (
                       <>
                         <Lock className="w-4 h-4 mr-2" />
-                        Login
+                        Sign In
                       </>
                     )}
                   </Button>
@@ -449,69 +302,56 @@ export function LoginScreen() {
               </TabsContent>
             </Tabs>
           ) : (
-            <form onSubmit={handleLogin} className="space-y-6">
+            /* PIN Entry for Selected User */
+            <form onSubmit={handleLogin} className="space-y-6 animate-fade-in">
               <div className="text-center">
-                <div 
-                  className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4"
-                  style={{ background: currentTheme.gradient }}
-                >
-                  <User className="w-10 h-10 text-white" />
+                <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white text-2xl font-bold">
+                  {selectedUser.name.charAt(0)}
                 </div>
-                <p className="text-xl font-semibold" style={{ color: currentTheme.textPrimary }}>
-                  {selectedUser.name}
-                </p>
-                <p style={{ color: currentTheme.textSecondary }}>{selectedUser.email}</p>
-                <Badge 
-                  className="mt-2"
-                  style={{ background: currentTheme.primary, color: 'white' }}
-                >
+                <p className="text-xl font-semibold text-slate-900">{selectedUser.name}</p>
+                <p className="text-slate-500">{selectedUser.email}</p>
+                <Badge className="mt-2 bg-emerald-100 text-emerald-700">
                   {selectedUser.role}
                 </Badge>
               </div>
 
               <div className="space-y-2">
-                <Label style={{ color: currentTheme.textPrimary }}>Enter PIN</Label>
-                <div className="relative">
+                <Label htmlFor="pin-selected" className="text-slate-700 text-center block">
+                  Enter your PIN
+                </Label>
+                <div className="relative max-w-xs mx-auto">
                   <Input
-                    id="pin"
+                    id="pin-selected"
                     type={showPin ? 'text' : 'password'}
                     value={pin}
-                    onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
                     placeholder="••••"
-                    maxLength={4}
+                    maxLength={6}
                     autoFocus
-                    className="text-center text-2xl tracking-widest h-14 pr-10"
-                    style={{ 
-                      borderColor: currentTheme.border,
-                      color: currentTheme.textPrimary,
-                      background: currentTheme.background 
-                    }}
-                    required
+                    className="text-center text-2xl tracking-[0.5em] h-14"
+                    disabled={isLoading}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPin(!showPin)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2"
-                    style={{ color: currentTheme.textMuted }}
-                  >
-                    {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
                 </div>
+                <p className="text-xs text-center text-slate-400">
+                  Demo PIN: <span className="font-mono font-semibold text-emerald-600">1234</span>
+                </p>
               </div>
 
               <div className="space-y-2">
                 <Button 
                   type="submit" 
-                  className="w-full h-12 text-white"
-                  disabled={isLoading || pin.length !== 4}
-                  style={{ background: currentTheme.gradient }}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-12"
+                  disabled={isLoading || pin.length < 4}
                 >
                   {isLoading ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Signing in...
+                    </>
                   ) : (
                     <>
                       <Lock className="w-5 h-5 mr-2" />
-                      Login
+                      Sign In
                     </>
                   )}
                 </Button>
@@ -519,32 +359,21 @@ export function LoginScreen() {
                 <Button
                   type="button"
                   variant="ghost"
-                  className="w-full"
                   onClick={handleBack}
-                  style={{ color: currentTheme.textSecondary }}
+                  disabled={isLoading}
+                  className="w-full text-slate-500"
                 >
                   Back to users
                 </Button>
               </div>
             </form>
           )}
-
-          {!selectedUser && !showLicenseInput && !needsLicense && (
-            <div 
-              className="mt-6 pt-4 border-t text-center"
-              style={{ borderColor: currentTheme.border }}
-            >
-              <p className="text-xs" style={{ color: currentTheme.textMuted }}>
-                Demo PIN: <span className="font-mono font-bold" style={{ color: currentTheme.primary }}>1234</span>
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
 
       {/* Footer */}
       <div className="absolute bottom-4 left-0 right-0 text-center">
-        <p className="text-white/60 text-xs">
+        <p className="text-white/50 text-xs">
           © 2024 AppleFlow POS. All rights reserved.
         </p>
       </div>

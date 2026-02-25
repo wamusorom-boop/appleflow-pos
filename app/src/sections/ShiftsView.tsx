@@ -24,12 +24,10 @@ import {
   saveXReport, saveZReport, DEMO_BUSINESS
 } from '@/lib/data';
 import type { XReport, ZReport, EndOfDaySummary } from '@/types';
+import { useAuth } from '@/context/AuthContext';
 
-interface ShiftsViewProps {
-  user: any;
-}
-
-export function ShiftsView({ user }: ShiftsViewProps) {
+export function ShiftsView() {
+  const { user } = useAuth();
   const [shifts, setShifts] = useState<any[]>([]);
   const [activeShift, setActiveShift] = useState<any>(null);
   const [sales, setSales] = useState<any[]>([]);
@@ -82,8 +80,8 @@ export function ShiftsView({ user }: ShiftsViewProps) {
 
     const newShift = {
       id: generateShiftId(),
-      userId: user.id,
-      userName: user.name,
+      userId: user?.id || '',
+      userName: user?.name || 'Unknown',
       openedAt: new Date().toISOString(),
       openingCash: cash,
       cashSales: 0,
@@ -175,7 +173,7 @@ export function ShiftsView({ user }: ShiftsViewProps) {
       type: movementType,
       amount,
       reason: movementReason,
-      performedBy: user.name,
+      performedBy: user?.name || 'Unknown',
       performedAt: new Date().toISOString(),
     };
 
@@ -201,7 +199,7 @@ export function ShiftsView({ user }: ShiftsViewProps) {
   };
 
   const handleGenerateEod = () => {
-    const summary = generateEndOfDaySummary(eodDate, user.name);
+    const summary = generateEndOfDaySummary(eodDate, user?.name || 'Unknown');
     setShowEodSummary(summary);
     setShowEodDatePicker(false);
   };
@@ -442,7 +440,7 @@ export function ShiftsView({ user }: ShiftsViewProps) {
                         variant="outline"
                         onClick={(e) => {
                           e.stopPropagation();
-                          const report = generateZReport(shift.id, user.name);
+                          const report = generateZReport(shift.id, user?.name || 'Unknown');
                           if (report) {
                             saveZReport(report);
                             setShowZReport(report);

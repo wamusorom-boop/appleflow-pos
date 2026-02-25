@@ -1,115 +1,98 @@
 /**
  * AppleFlow POS - Main Application
- * Ultimate Edition with splash screen, themes, and full API integration
+ * Fixed: Proper routing, protected routes, error handling, loading states
  */
 
-import { useState } from 'react';
-import { LoginScreen } from './sections/LoginScreen';
-import { POSLayout } from './sections/POSLayout';
-import { SplashScreen } from './components/SplashScreen';
-import { Toaster } from '@/components/ui/sonner';
-import { toast } from 'sonner';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Toaster } from 'sonner';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { LoadingScreen } from '@/components/LoadingScreen';
+import { LoginScreen } from '@/sections/LoginScreen';
+import { POSLayout } from '@/sections/POSLayout';
 import { useAuth } from '@/context/AuthContext';
-import { ThemeProvider } from '@/context/ThemeContext';
-import { useRealtimeSales, useRealtimeInventory, useSystemMessages } from '@/hooks/useWebSocket';
 
-export type ViewType = 'pos' | 'products' | 'sales' | 'shifts' | 'customers' | 'analytics' | 'settings' | 'inventory' | 'reports' | 'license';
-
-function AppContent() {
-  const { isAuthenticated, isLoading, user, logout } = useAuth();
-  const [showSplash, setShowSplash] = useState(true);
-
-  // Real-time updates
-  useRealtimeSales(
-    (sale) => {
-      toast.success(`New sale: ${sale.receiptNumber}`, {
-        description: `KSh ${sale.total.toLocaleString()}`,
-      });
-    },
-    (sale) => {
-      toast.info(`Sale voided: ${sale.receiptNumber}`);
-    }
-  );
-
-  useRealtimeInventory(
-    (data) => {
-      if (data.lowStock) {
-        toast.warning(`Low stock alert: Product ${data.productId}`, {
-          description: `Current quantity: ${data.quantity}`,
-        });
-      }
-    },
-    (product) => {
-      toast.error(`Critical low stock: ${product.productName}`, {
-        description: `Only ${product.currentStock} remaining (min: ${product.minStockLevel})`,
-      });
-    }
-  );
-
-  useSystemMessages((message) => {
-    switch (message.type) {
-      case 'warning':
-        toast.warning(message.message);
-        break;
-      case 'error':
-        toast.error(message.message);
-        break;
-      default:
-        toast.info(message.message);
-    }
-  });
-
-  // Handle logout with confirmation
-  const handleLogout = async () => {
-    const confirmed = window.confirm('Are you sure you want to logout?');
-    if (confirmed) {
-      await logout();
-      toast.info('Logged out successfully');
-    }
-  };
-
-  // Show splash screen first
-  if (showSplash) {
-    return <SplashScreen onComplete={() => setShowSplash(false)} minDuration={2500} />;
-  }
+// Protected Route Component
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
-    return (
-      <div 
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: 'linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%)' }}
-      >
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-white/80">Loading AppleFlow POS...</p>
-          <p className="text-white/60 text-sm mt-2">Connecting to server...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Checking authentication..." />;
   }
 
   if (!isAuthenticated) {
-    return (
-      <>
-        <LoginScreen />
-        <Toaster position="top-right" richColors />
-      </>
-    );
+    // Redirect to login, but save the attempted URL
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Public Route Component (redirects to dashboard if already logged in)
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <LoadingScreen message="Loading..." />;
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Main App Content
+function AppContent() {
+  const { isLoading } = useAuth();
+
+  // Show loading screen while checking auth
+  if (isLoading) {
+    return <LoadingScreen message="Initializing AppleFlow POS..." />;
   }
 
   return (
-    <>
-      <POSLayout user={user} onLogout={handleLogout} />
-      <Toaster position="top-right" richColors />
-    </>
+    <Routes>
+      {/* Public Routes */}
+      <Route 
+        path="/login" 
+        element={
+          <PublicRoute>
+            <LoginScreen />
+          </PublicRoute>
+        } 
+      />
+
+      {/* Protected Routes */}
+      <Route 
+        path="/*" 
+        element={
+          <ProtectedRoute>
+            <POSLayout />
+          </ProtectedRoute>
+        } 
+      />
+    </Routes>
   );
 }
 
+// Main App Component
 function App() {
   return (
-    <ThemeProvider>
-      <AppContent />
-    </ThemeProvider>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AppContent />
+        <Toaster 
+          position="top-right" 
+          richColors 
+          closeButton
+          toastOptions={{
+            duration: 4000,
+          }}
+        />
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

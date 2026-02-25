@@ -31,14 +31,14 @@ import {
   getActiveQuickKeys, getActiveWarningsForCustomer, getTotalStoreCreditBalance,
   findBundleByBarcode, logReceiptReprint
 } from '@/lib/data';
-import type { Product, Customer, CartItem, Sale, PaymentSplit, ProductBundle, CustomerNote, User } from '@/types';
-
-interface POSViewProps {
-  user: User;
-}
+import type { Product, Customer, CartItem, Sale, PaymentSplit, ProductBundle, CustomerNote } from '@/types';
+import { useAuth } from '@/context/AuthContext';
 
 // Quick Action Button for fast access
 type QuickActionType = 'void_last' | 'void_sale' | 'reprint' | 'park' | 'resume' | 'lookup';
+
+type PermissionType = 'canProcessSales' | 'canApplyDiscounts' | 'canRefund' | 'canVoid' | 
+  'canManageInventory' | 'canManageProducts' | 'canViewReports' | 'canManageUsers' | 'canOpenCloseShift';
 
 interface QuickAction {
   type: QuickActionType;
@@ -47,7 +47,7 @@ interface QuickAction {
   icon: React.ElementType;
   color: string;
   requiresCart?: boolean;
-  permission?: keyof User['permissions'];
+  permission?: PermissionType;
 }
 
 const QUICK_ACTIONS: QuickAction[] = [
@@ -423,7 +423,9 @@ function ManagerOverrideDialog({ isOpen, onClose, onApprove, action }: ManagerOv
 }
 
 // Main POS View Component
-export function POSView({ user }: POSViewProps) {
+export function POSView() {
+  const { user, hasPermission } = useAuth();
+  
   // Data states
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -744,13 +746,13 @@ export function POSView({ user }: POSViewProps) {
     if (cart.length === 0) return;
     
     // Check permission
-    if (!user.permissions.canVoid) {
+    if (!hasPermission('canVoid')) {
       setPendingAction(() => () => {
         const lastIndex = cart.length - 1;
         const item = cart[lastIndex];
         setCart(cart.filter((_, i) => i !== lastIndex));
         toast.info(`Voided: ${item.product.name}`);
-        addAuditLog('sale_voided', 'cart_item', item.product.id, `Voided ${item.product.name} from cart`, user.id, user.name);
+        addAuditLog('sale_voided', 'cart_item', item.product.id, `Voided ${item.product.name} from cart`, user?.id || '', user?.name || '');
       });
       setOverrideReason('Void last item');
       setShowManagerOverride(true);
@@ -761,19 +763,19 @@ export function POSView({ user }: POSViewProps) {
     const item = cart[lastIndex];
     setCart(cart.filter((_, i) => i !== lastIndex));
     toast.info(`Voided: ${item.product.name}`);
-    addAuditLog('sale_voided', 'cart_item', item.product.id, `Voided ${item.product.name} from cart`, user.id, user.name);
+    addAuditLog('sale_voided', 'cart_item', item.product.id, `Voided ${item.product.name} from cart`, user?.id || '', user?.name || '');
   };
 
   const handleVoidSale = () => {
     if (cart.length === 0) return;
     
-    if (!user.permissions.canVoid) {
+    if (!hasPermission('canVoid')) {
       setPendingAction(() => () => {
         const itemCount = cart.length;
         setCart([]);
         setSelectedCustomer(null);
         toast.info(`Voided entire sale (${itemCount} items)`);
-        addAuditLog('sale_voided', 'cart', 'all', `Voided entire cart (${itemCount} items)`, user.id, user.name);
+        addAuditLog('sale_voided', 'cart', 'all', `Voided entire cart (${itemCount} items)`, user?.id || '', user?.name || '');
       });
       setOverrideReason('Void entire sale');
       setShowManagerOverride(true);
@@ -784,13 +786,13 @@ export function POSView({ user }: POSViewProps) {
     setCart([]);
     setSelectedCustomer(null);
     toast.info(`Voided entire sale (${itemCount} items)`);
-    addAuditLog('sale_voided', 'cart', 'all', `Voided entire cart (${itemCount} items)`, user.id, user.name);
+    addAuditLog('sale_voided', 'cart', 'all', `Voided entire cart (${itemCount} items)`, user?.id || '', user?.name || '');
     setShowVoidConfirm(false);
   };
 
   // Line item discount with permission
   const applyLineItemDiscount = (index: number, percent: number) => {
-    const maxDiscount = user.permissions.maxDiscountPercent;
+    const maxDiscount = user?.permissions?.maxDiscountPercent || 0;
     
     if (percent > maxDiscount) {
       setPendingAction(() => () => {
@@ -824,7 +826,7 @@ export function POSView({ user }: POSViewProps) {
       vatTotal: cartTotals.vatTotal,
       total: cartTotals.total,
       heldAt: new Date().toISOString(),
-      heldBy: user.name,
+      heldBy: user?.name || 'Unknown',
       note: parkNote,
     };
     
@@ -836,7 +838,7 @@ export function POSView({ user }: POSViewProps) {
     setShowParkDialog(false);
     loadParkedTransactions();
     toast.success('Transaction parked');
-    addAuditLog('sale_created', 'parked', newPark.id, `Parked transaction: ${newPark.name}`, user.id, user.name);
+    addAuditLog('sale_created', 'parked', newPark.id, `Parked transaction: ${newPark.name}`, user?.id || '', user?.name || '');
   };
 
   const resumeParked = (park: any) => {
@@ -869,7 +871,7 @@ export function POSView({ user }: POSViewProps) {
     setLastSale(last);
     setShowReceipt(true);
     logReceiptReprint(last.id, last.receiptNumber, 'Quick reprint from POS');
-    addAuditLog('receipt_reprinted', 'sale', last.id, `Quick reprint: ${last.receiptNumber}`, user.id, user.name);
+    addAuditLog('receipt_reprinted', 'sale', last.id, `Quick reprint: ${last.receiptNumber}`, user?.id || '', user?.name || '');
   };
 
   // Numpad handlers
@@ -1017,12 +1019,12 @@ export function POSView({ user }: POSViewProps) {
         type: 'percentage',
         value: customerDiscount,
         amount: cartTotals.subtotal * customerDiscount / 100,
-        appliedBy: user.name,
+        appliedBy: user?.name || 'Unknown',
         appliedAt: new Date().toISOString(),
       }] : [],
       customer: selectedCustomer || undefined,
-      cashierId: user.id,
-      cashierName: user.name,
+      cashierId: user?.id || '',
+      cashierName: user?.name || 'Unknown',
       shiftId: activeShift?.id,
       createdAt: new Date().toISOString(),
       isLayaway: false,
@@ -1032,7 +1034,7 @@ export function POSView({ user }: POSViewProps) {
     sales.unshift(sale);
     saveSales(sales);
     
-    addAuditLog('sale_created', 'sale', sale.id, `Sale: ${formatCurrency(total)}`, user.id, user.name);
+    addAuditLog('sale_created', 'sale', sale.id, `Sale: ${formatCurrency(total)}`, user?.id || '', user?.name || '');
 
     // Update inventory
     const updatedProducts = products.map(product => {

@@ -5,7 +5,19 @@
 
 import { useEffect, useRef, useState, useCallback, createContext, useContext, type ReactNode } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import { TokenManager } from '@/lib/api';
+// Get token from localStorage
+const getAccessToken = (): string | null => {
+  try {
+    const tokensStr = localStorage.getItem('af_tokens');
+    if (tokensStr) {
+      const tokens = JSON.parse(tokensStr);
+      return tokens?.accessToken || null;
+    }
+  } catch (e) {
+    console.error('Failed to get access token:', e);
+  }
+  return null;
+};
 
 // WebSocket configuration
 const WS_URL = import.meta.env.VITE_WS_URL || 'http://localhost:3000';
@@ -34,7 +46,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
     setIsConnecting(true);
 
-    const token = TokenManager.getAccessToken();
+    const token = getAccessToken();
     if (!token) {
       setIsConnecting(false);
       return;

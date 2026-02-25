@@ -1,6 +1,7 @@
 /**
  * AppleFlow POS - Main Layout
  * Professional POS interface with sidebar navigation
+ * Updated: Integrated with AuthContext, added logo
  */
 
 import { useState } from 'react';
@@ -14,12 +15,12 @@ import {
   LogOut,
   Menu,
   X,
-  Clock,
-  LayoutDashboard
+  Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/context/AuthContext';
 import { POSView } from './POSView';
 import { ProductsView } from './ProductsView';
 import { SalesView } from './SalesView';
@@ -27,12 +28,8 @@ import { CustomersView } from './CustomersView';
 import { AnalyticsView } from './AnalyticsView';
 import { SettingsView } from './SettingsView';
 import { ShiftsView } from './ShiftsView';
-import type { ViewType } from '@/App';
 
-interface POSLayoutProps {
-  user: any;
-  onLogout: () => void;
-}
+type ViewType = 'pos' | 'products' | 'sales' | 'shifts' | 'customers' | 'analytics' | 'settings';
 
 const navigation: { id: ViewType; label: string; icon: React.ElementType }[] = [
   { id: 'pos', label: 'Point of Sale', icon: ShoppingCart },
@@ -44,20 +41,28 @@ const navigation: { id: ViewType; label: string; icon: React.ElementType }[] = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
-export function POSLayout({ user, onLogout }: POSLayoutProps) {
+export function POSLayout() {
+  const { user, logout } = useAuth();
   const [currentView, setCurrentView] = useState<ViewType>('pos');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  
+  // Handle logout with confirmation
+  const handleLogout = async () => {
+    if (window.confirm('Are you sure you want to logout?')) {
+      await logout();
+    }
+  };
 
   const renderView = () => {
     switch (currentView) {
       case 'pos':
-        return <POSView user={user} />;
+        return <POSView />;
       case 'products':
         return <ProductsView />;
       case 'sales':
         return <SalesView />;
       case 'shifts':
-        return <ShiftsView user={user} />;
+        return <ShiftsView />;
       case 'customers':
         return <CustomersView />;
       case 'analytics':
@@ -65,7 +70,7 @@ export function POSLayout({ user, onLogout }: POSLayoutProps) {
       case 'settings':
         return <SettingsView />;
       default:
-        return <POSView user={user} />;
+        return <POSView />;
     }
   };
 
@@ -81,11 +86,26 @@ export function POSLayout({ user, onLogout }: POSLayoutProps) {
         {/* Logo & Toggle */}
         <div className="h-16 flex items-center px-4 border-b border-slate-800 justify-between">
           <div className="flex items-center">
-            <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center flex-shrink-0">
-              <LayoutDashboard className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-white overflow-hidden">
+              <img 
+                src="/logo.png" 
+                alt="AppleFlow POS" 
+                className="w-8 h-8 object-contain"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  const fallback = document.createElement('div');
+                  fallback.className = 'w-full h-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center';
+                  fallback.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>';
+                  target.parentElement?.appendChild(fallback);
+                }}
+              />
             </div>
             {sidebarOpen && (
-              <span className="ml-3 font-bold text-slate-200 text-lg">AppleFlow</span>
+              <div className="ml-3">
+                <span className="font-bold text-slate-200 text-lg block leading-tight">AppleFlow</span>
+                <span className="text-[10px] text-slate-500 block">POS System</span>
+              </div>
             )}
           </div>
           <button
@@ -127,25 +147,25 @@ export function POSLayout({ user, onLogout }: POSLayoutProps) {
             "flex items-center gap-3 px-3 py-2 mb-2 rounded-xl bg-slate-800/50",
             !sidebarOpen && "justify-center"
           )}>
-            <div className="w-8 h-8 bg-gradient-to-br from-slate-600 to-slate-700 rounded-full flex items-center justify-center flex-shrink-0">
-              <span className="text-sm font-medium text-slate-300">
-                {user.name.charAt(0)}
+            <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center flex-shrink-0">
+              <span className="text-sm font-medium text-white">
+                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
               </span>
             </div>
             {sidebarOpen && (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-200 truncate">{user.name}</p>
-                <Badge variant="secondary" className="text-xs bg-slate-700 text-slate-400">
-                  {user.role}
+                <p className="text-sm font-medium text-slate-200 truncate">{user?.name || 'Unknown'}</p>
+                <Badge variant="secondary" className="text-xs bg-emerald-500/20 text-emerald-400 border-emerald-500/30 capitalize">
+                  {user?.role || 'staff'}
                 </Badge>
               </div>
             )}
           </div>
           <Button
             variant="ghost"
-            onClick={onLogout}
+            onClick={handleLogout}
             className={cn(
-              "w-full flex items-center gap-3 text-slate-400 hover:text-red-400 hover:bg-red-500/10",
+              "w-full flex items-center gap-3 text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors",
               !sidebarOpen && "justify-center px-2"
             )}
           >

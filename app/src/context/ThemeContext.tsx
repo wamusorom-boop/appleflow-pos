@@ -3,7 +3,7 @@
  * Multi-color theme system with background options
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 
 // Predefined beautiful themes - NO DARK COLORS that hide text
 export const themes = {

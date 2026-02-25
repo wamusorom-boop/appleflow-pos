@@ -3,8 +3,8 @@
  * Allows users to choose from beautiful color themes
  */
 
-import React, { useState } from 'react';
-import { useTheme, themes, ThemeName } from '@/context/ThemeContext';
+import { useState } from 'react';
+import { useTheme, type ThemeName } from '@/context/ThemeContext';
 import { Palette, Check, X, Droplets } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -109,8 +109,8 @@ export function ThemeSelector() {
                       }`}
                       style={{ 
                         background: theme.gradient,
-                        ringColor: isSelected ? theme.primary : undefined 
-                      }}
+                        '--tw-ring-color': isSelected ? theme.primary : undefined 
+                      } as React.CSSProperties}
                     >
                       {/* Selected indicator */}
                       {isSelected && (
