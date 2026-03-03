@@ -1,6 +1,10 @@
 # AppleFlow POS - Backend API
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/yourusername/appleflow-pos)
+
 Production-ready Point of Sale system backend API with M-Pesa integration, hardware support, and offline sync capabilities.
+
+**🚀 Deploy FREE in 15 minutes | 💰 Zero Cost | 🔐 Production Hardened**
 
 ## Features
 
