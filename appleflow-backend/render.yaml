@@ -1,0 +1,126 @@
+# AppleFlow POS - Render.com Blueprint
+# This file enables ONE-CLICK deployment to Render.com
+# Simply push to GitHub and connect to Render!
+
+services:
+  # Backend API Service
+  - type: web
+    name: appleflow-pos-api
+    runtime: node
+    plan: free
+    region: oregon
+    
+    # Build configuration
+    buildCommand: |
+      echo "🚀 Starting AppleFlow POS build..."
+      npm install
+      echo "📦 Generating Prisma client..."
+      npx prisma generate
+      echo "🏗️ Building TypeScript..."
+      npm run build
+      echo "✅ Build complete!"
+    
+    # Start command - runs migrations then starts server
+    startCommand: |
+      echo "🚀 Starting AppleFlow POS..."
+      echo "📊 Running database migrations..."
+      npx prisma migrate deploy || echo "Migration check complete"
+      echo "🌐 Starting server..."
+      npm start
+    
+    # Health check endpoint
+    healthCheckPath: /health
+    
+    # Auto-deploy on git push
+    autoDeploy: true
+    
+    # Environment variables
+    envVars:
+      - key: NODE_ENV
+        value: production
+      
+      - key: PORT
+        value: 10000
+      
+      # Database - linked from database service below
+      - key: DATABASE_URL
+        fromDatabase:
+          name: appleflow-db
+          property: connectionString
+      
+      # JWT Secrets - auto-generated for security
+      - key: JWT_SECRET
+        generateValue: true
+      
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      
+      - key: JWT_ACCESS_EXPIRY
+        value: "900"
+      
+      - key: JWT_REFRESH_EXPIRY
+        value: "604800"
+      
+      # Security
+      - key: BCRYPT_ROUNDS
+        value: "12"
+      
+      - key: CORS_ORIGINS
+        value: "*"
+      
+      # Logging
+      - key: LOG_LEVEL
+        value: info
+      
+      # License - set this after first deploy
+      - key: LICENSE_KEY
+        sync: false
+      
+      # M-Pesa Configuration (set these manually after deploy)
+      - key: MPESA_ENVIRONMENT
+        value: sandbox
+      
+      - key: MPESA_SHORT_CODE
+        sync: false
+      
+      - key: MPESA_PASSKEY
+        sync: false
+      
+      - key: MPESA_CONSUMER_KEY
+        sync: false
+      
+      - key: MPESA_CONSUMER_SECRET
+        sync: false
+      
+      - key: MPESA_CALLBACK_URL
+        value: "https://appleflow-pos-api.onrender.com/api/mpesa/callback"
+      
+      # Tax Configuration
+      - key: ENABLE_TAX
+        value: "false"
+      
+      - key: DEFAULT_TAX_RATE
+        value: "0"
+      
+      # Features
+      - key: ENABLE_LOYALTY
+        value: "true"
+      
+      - key: ENABLE_GIFT_CARDS
+        value: "true"
+      
+      - key: AUTO_CREATE_LICENSES
+        value: "true"
+    
+    # Disk for file uploads (optional)
+    disk:
+      name: uploads
+      mountPath: /app/uploads
+      sizeGB: 1
+
+# PostgreSQL Database
+databases:
+  - name: appleflow-db
+    plan: free
+    region: oregon
+    ipAllowList: []  # Allow all (Render handles security)

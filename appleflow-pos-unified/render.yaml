@@ -1,0 +1,61 @@
+# AppleFlow POS - Render.com Blueprint
+# One-click deployment configuration
+
+services:
+  - type: web
+    name: appleflow-pos
+    runtime: node
+    plan: free
+    region: oregon
+    
+    buildCommand: |
+      echo "📦 Installing server dependencies..."
+      npm install
+      echo "📦 Installing client dependencies..."
+      cd client && npm install && npm run build && cd ..
+      echo "🗄️ Generating Prisma client..."
+      npx prisma generate
+      echo "✅ Build complete!"
+    
+    startCommand: |
+      echo "🚀 Starting AppleFlow POS..."
+      npx prisma migrate deploy
+      npm start
+    
+    healthCheckPath: /health
+    autoDeploy: true
+    
+    envVars:
+      - key: NODE_ENV
+        value: production
+      
+      - key: PORT
+        value: 10000
+      
+      - key: DATABASE_URL
+        fromDatabase:
+          name: appleflow-db
+          property: connectionString
+      
+      - key: JWT_SECRET
+        generateValue: true
+      
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      
+      - key: JWT_EXPIRY
+        value: 8h
+      
+      - key: JWT_REFRESH_EXPIRY
+        value: 7d
+      
+      - key: BCRYPT_ROUNDS
+        value: 12
+      
+      - key: CORS_ORIGINS
+        value: "*"
+
+databases:
+  - name: appleflow-db
+    plan: free
+    region: oregon

@@ -1,0 +1,213 @@
+// AppleFlow POS - Database Schema
+// Unified Edition - Production Ready
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER MANAGEMENT
+// ============================================
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String
+  pinHash       String    // bcrypt hashed PIN
+  role          UserRole  @default(CASHIER)
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  sales         Sale[]
+  shifts        Shift[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  SUPERVISOR
+  CASHIER
+  STAFF
+}
+
+// ============================================
+// PRODUCT MANAGEMENT
+// ============================================
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  products    Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id            String   @id @default(uuid())
+  sku           String   @unique
+  name          String
+  description   String?
+  barcode       String?  @unique
+  costPrice     Decimal  @db.Decimal(10, 2)
+  sellingPrice  Decimal  @db.Decimal(10, 2)
+  quantity      Int      @default(0)
+  minStockLevel Int      @default(10)
+  isDeleted     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  categoryId    String?
+  category      Category?    @relation(fields: [categoryId], references: [id])
+  saleItems     SaleItem[]
+
+  @@map("products")
+}
+
+// ============================================
+// CUSTOMER MANAGEMENT
+// ============================================
+
+model Customer {
+  id          String   @id @default(uuid())
+  name        String
+  email       String?  @unique
+  phone       String?
+  address     String?
+  loyaltyPoints Int    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  sales       Sale[]
+
+  @@map("customers")
+}
+
+// ============================================
+// SALES & TRANSACTIONS
+// ============================================
+
+model Sale {
+  id            String      @id @default(uuid())
+  receiptNumber String      @unique
+  subtotal      Decimal     @db.Decimal(10, 2)
+  discount      Decimal     @default(0) @db.Decimal(10, 2)
+  total         Decimal     @db.Decimal(10, 2)
+  status        SaleStatus  @default(COMPLETED)
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Relations
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  customerId    String?
+  customer      Customer?   @relation(fields: [customerId], references: [id])
+  items         SaleItem[]
+  payments      Payment[]
+
+  @@map("sales")
+}
+
+enum SaleStatus {
+  COMPLETED
+  VOIDED
+  REFUNDED
+  HELD
+}
+
+model SaleItem {
+  id          String   @id @default(uuid())
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  total       Decimal  @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  saleId      String
+  sale        Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+
+  @@map("sale_items")
+}
+
+model Payment {
+  id          String        @id @default(uuid())
+  method      PaymentMethod
+  amount      Decimal       @db.Decimal(10, 2)
+  reference   String?
+  createdAt   DateTime      @default(now())
+
+  // Relations
+  saleId      String
+  sale        Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+enum PaymentMethod {
+  CASH
+  MPESA
+  CARD
+  BANK_TRANSFER
+  GIFT_CARD
+  CREDIT
+}
+
+// ============================================
+// SHIFT MANAGEMENT
+// ============================================
+
+model Shift {
+  id            String      @id @default(uuid())
+  openedAt      DateTime    @default(now())
+  closedAt      DateTime?
+  openingCash   Decimal     @db.Decimal(10, 2)
+  closingCash   Decimal?    @db.Decimal(10, 2)
+  expectedCash  Decimal?    @db.Decimal(10, 2)
+  cashDifference Decimal?   @db.Decimal(10, 2)
+  notes         String?
+  status        ShiftStatus @default(OPEN)
+
+  // Relations
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+
+  @@map("shifts")
+}
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
+// ============================================
+// SETTINGS
+// ============================================
+
+model Setting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("settings")
+}
