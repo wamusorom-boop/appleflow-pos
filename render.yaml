@@ -112,11 +112,7 @@ services:
       - key: AUTO_CREATE_LICENSES
         value: "true"
     
-    # Disk for file uploads (optional)
-    disk:
-      name: uploads
-      mountPath: /app/uploads
-      sizeGB: 1
+    
 
 # PostgreSQL Database
 databases:
